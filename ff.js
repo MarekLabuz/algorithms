@@ -1,5 +1,7 @@
 const fs = require('fs')
 
+const log = require('single-line-log').stdout
+
 class Graph {
   constructor () {
     this.vertexes = {}
@@ -12,22 +14,24 @@ class Graph {
       ...this.vertexes,
       [v1]: {
         ...this.vertexes[v1],
-        [v2]: { capacity, flow: 0 }
+        [v2]: { capacity }
       }
     }
   }
 
+  setFlow (v1, v2, value) {
+    if (!this.flows[v1]) {
+      this.flows[v1] = {}
+    }
+    this.flows[v1][v2] = value
+  }
+
+  getFlow (v1, v2) {
+    return this.flows[v1] && this.flows[v1][v2] || 0
+  }
+
   reset () {
-    this.vertexes = Object.keys(this.vertexes).reduce((acc, id) => ({
-      ...acc,
-      [id]: Object.keys(this.vertexes[id]).reduce((acc2, id2) => ({
-        ...acc2,
-        [id2]: Object.keys(this.vertexes[id][id2]).reduce((acc3, id3) => ({
-          ...acc3,
-          flow: 0
-        }), this.vertexes[id][id2])
-      }), this.vertexes[id])
-    }), this.vertexes)
+    this.flows = {}
     this.discovered.clear()
   }
 }
@@ -41,8 +45,8 @@ const DFS = (a, b, path = [a]) => {
   } else {
     const connectedVertexes = Object.keys(graph.vertexes[a])
     for (const vertex of connectedVertexes) {
-      const { capacity, flow } = graph.vertexes[a][vertex]
-      const cf = capacity - flow
+      const { capacity } = graph.vertexes[a][vertex]
+      const cf = capacity - graph.getFlow(a, vertex)
       if (!graph.discovered.has(vertex) && cf > 0) {
         const p = DFS(vertex, b, [...path, vertex])
         if (p) {
@@ -58,15 +62,14 @@ const constructPath = (s, meta) => {
   const result = [s]
 
   let state = s
-  while (true) {
-    const row = meta[state]
+  let row
+  do {
+    row = meta[state]
     if (row) {
       state = row[0]
       result.push(row[1])
-    } else {
-      break
     }
-  }
+  } while (row)
 
   return result.reverse().slice(1)
 }
@@ -92,8 +95,8 @@ const BFS = (a, b) => {
         continue
       }
 
-      const { capacity, flow } = graph.vertexes[u][v]
-      const cf = capacity - flow
+      const { capacity } = graph.vertexes[u][v]
+      const cf = capacity - graph.getFlow(u, v)
 
       if (!queue.includes(v) && cf > 0) {
         meta[v] = [u, u]
@@ -105,7 +108,7 @@ const BFS = (a, b) => {
   }
 }
 
-fs.readFileSync('graf2.txt', 'utf-8')
+fs.readFileSync('graf1.txt', 'utf-8')
   .split('\n')
   .filter(v => v)
   .map(v => v.split(';').map(e => parseFloat(e)))
@@ -120,14 +123,14 @@ const ff = (a, b, algorithm) => {
       if (!path[i - 1]) {
         return minCf
       }
-      const { capacity, flow } = graph.vertexes[path[i - 1]][curr]
-      const cf = capacity - flow
+      const { capacity } = graph.vertexes[path[i - 1]][curr]
+      const cf = capacity - graph.getFlow(path[i - 1], curr)
       return cf < minCf ? cf : minCf
     }, Infinity)
 
     for (let i = 1; i < path.length; i += 1) {
-      const edge = graph.vertexes[path[i - 1]][path[i]]
-      edge.flow += minCf
+      const flow = graph.getFlow(path[i - 1], path[i])
+      graph.setFlow(path[i - 1], path[i], flow + minCf)
     }
 
     graph.discovered.clear()
@@ -135,12 +138,29 @@ const ff = (a, b, algorithm) => {
   }
 }
 
-const sumFlow = id => Object.values(graph.vertexes[id])
-  .reduce((acc, { flow }) => acc + flow, 0)
+const sumFlow = id => Object.values(graph.flows[id])
+  .reduce((acc, flow) => acc + flow, 0)
 
-ff('1', '7', DFS)
-console.log('DFS', sumFlow('1'))
+ff('10', '60', DFS)
+console.log('DFS', sumFlow('10'))
 
 graph.reset()
-ff('1', '7', BFS)
-console.log('BFS', sumFlow('1'))
+ff('10', '60', BFS)
+console.log('BFS', sumFlow('10'))
+
+let maxFlow = 0
+let vertexWithMaxFlow = '10'
+for (let i = 1; i <= 99; i += 1) {
+  if (i !== 10) {
+    graph.reset()
+    ff('10', `${i}`, DFS)
+    const flow = sumFlow('10')
+    if (flow > maxFlow) {
+      maxFlow = flow
+      vertexWithMaxFlow = i
+    }
+    log(`${i}/99`, flow)
+  }
+}
+
+console.log('\n', vertexWithMaxFlow, maxFlow)

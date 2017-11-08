@@ -1,6 +1,6 @@
 const fs = require('fs')
 
-const log = require('single-line-log').stdout
+// const log = require('single-line-log').stdout
 
 class Graph {
   constructor () {
@@ -150,17 +150,20 @@ console.log('BFS', sumFlow('10'))
 
 let maxFlow = 0
 let vertexWithMaxFlow = '10'
+const results = {}
 for (let i = 1; i <= 99; i += 1) {
   if (i !== 10) {
     graph.reset()
     ff('10', `${i}`, DFS)
     const flow = sumFlow('10')
+    results[i] = flow
     if (flow > maxFlow) {
       maxFlow = flow
       vertexWithMaxFlow = i
     }
-    log(`${i}/99`, flow)
+    console.log(`${i}/99`, flow)
   }
 }
 
-console.log('\n', vertexWithMaxFlow, maxFlow)
+console.log()
+console.log(Object.keys(results).filter(key => results[key] === maxFlow), maxFlow)

@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <math.h>
+#include <string.h>
+#include <stdlib.h>
 
 struct Point {
 	double x, y, z;
@@ -15,7 +17,7 @@ struct Edge {
 
 struct Solid {
 	int size;
-	struct Face F[];
+	struct Face F[150];
 };
 
 double distPP(struct Point a, struct Point b) {
@@ -303,8 +305,80 @@ double distPF(struct Point P, struct Face F) {
     return norm(diff);
 }
 
-double distEF() {
-    return 0;
+double distEF(struct Edge e, struct Face f) {
+    double distances[5];
+
+    struct Edge e1;
+    struct Edge e2;
+    struct Edge e3;
+    e1.v1 = f.v1; e1.v2 = f.v2;
+    e2.v1 = f.v2; e2.v2 = f.v3;
+    e3.v1 = f.v1; e3.v2 = f.v3;
+
+    distances[0] = distEE(e, e1);
+    distances[1] = distEE(e, e2);
+    distances[2] = distEE(e, e3);
+
+    distances[3] = distPF(e.v1, f);
+    distances[4] = distPF(e.v2, f);
+
+    double min = distances[0];
+
+    for(int i = 1; i < 5; i += 1) {
+        if (distances[i] < min) {
+            min = distances[i];
+        }
+    }
+
+    return min;
+}
+
+double distFF(struct Face f1, struct Face f2) {
+    double distances[6];
+
+    struct Edge e1;
+    struct Edge e2;
+    struct Edge e3;
+    e1.v1 = f1.v1; e1.v2 = f1.v2;
+    e2.v1 = f1.v2; e2.v2 = f1.v3;
+    e3.v1 = f1.v1; e3.v2 = f1.v3;
+
+    distances[0] = distEF(e1, f2);
+    distances[1] = distEF(e2, f2);
+    distances[2] = distEF(e3, f2);
+
+    e1.v1 = f2.v1; e1.v2 = f2.v2;
+    e2.v1 = f2.v2; e2.v2 = f2.v3;
+    e3.v1 = f2.v1; e3.v2 = f2.v3;
+
+    distances[3] = distEF(e1, f1);
+    distances[4] = distEF(e2, f1);
+    distances[5] = distEF(e3, f1);
+
+    double min = distances[0];
+
+    for(int i = 1; i < 6; i += 1) {
+        if (distances[i] < min) {
+            min = distances[i];
+        }
+    }
+
+    return min;
+}
+
+double distSS(struct Solid s1, struct Solid s2) {
+    double min = distFF(s1.F[0], s2.F[0]);
+
+    for (int i = 0; i < s1.size; i += 1) {
+        for (int j = 0; j < s2.size; j += 1) {
+            double distance = distFF(s1.F[i], s2.F[j]);
+            if (distance < min) {
+                min = distance;
+            }
+        }
+    }
+
+    return min;
 }
 
 int main() {
@@ -337,5 +411,89 @@ int main() {
 
     printf("distPF %f\n", distPF(p4, f1));
 
+    struct Edge e3;
+    struct Point p5;
+    p5.x = 10.0; p5.y = 100.0; p5.z = -60.0;
+    e3.v1 = p4; e3.v2 = p5;
+
+    printf("distEF %f\n", distEF(e3, f1));
+
+    printf("distFF %f\n", distFF(f1, f1));
+
+    // 2a
+    struct Point _p1;
+    struct Point _p2;
+    struct Point _p3;
+    _p1.x = 1.0; _p1.x = 0.0; _p1.x = 0.0;
+    _p2.x = 0.0; _p2.x = 1.0; _p2.x = 0.0;
+    _p3.x = 0.0; _p3.x = 0.0; _p3.x = 0.0;
+
+    struct Point _p4;
+    struct Point _p5;
+    struct Point _p6;
+    _p4.x = 100.0; _p4.x = 0.0; _p4.x = 0.13;
+    _p5.x = 0.0; _p5.x = 100.0; _p5.x = 0.13;
+    _p6.x = -100.0; _p6.x = -100.0; _p6.x = 0.13;
+
+    struct Face _f1;
+    _f1.v1 = _p1; _f1.v2 = _p2; _f1.v3 = _p3;
+    struct Face _f2;
+    _f2.v1 = _p4; _f2.v2 = _p5; _f2.v3 = _p6;
+
+    printf("2a) distFF %f\n", distFF(_f1, _f2));
+
+    // 2b
+    struct Solid solids[2];
+    solids[0].size = 132;
+//    solids[0].F =
+//    solids[1].size = 60;
+    solids[1].size = 60;
+
+    int solidIndex = -1;
+    int faceIndex = -1;
+
+    struct Point p_1;
+    struct Point p_2;
+    struct Point p_3;
+
+    FILE *fp;
+    char buff[255];
+    char *array[3];
+
+    fp = fopen("./solid_data.txt", "r");
+
+    for(int s = 0; s < 2; s += 1) {
+        fgets(buff, 255, (FILE*)fp);
+        for (int i = 0; i < solids[s].size * 4; i += 4) {
+            struct Point points[3];
+
+            for (int j = 0; j < 3; j += 1) {
+                fgets(buff, 255, (FILE*)fp);
+
+//                printf("\nPoint: %s", buff);
+                array[0] = strtok(buff, ";");
+                array[1] = strtok(NULL, ";");
+                array[2] = strtok(NULL, ";");
+
+                points[j].x = strtod(array[0], NULL);
+                points[j].y = strtod(array[1], NULL);
+                points[j].z = strtod(array[2], NULL);
+//                printf("%f\n", strtod(array[0], NULL));
+//                printf("%f\n", strtod(array[1], NULL));
+//                printf("%f\n", strtod(array[2], NULL));
+            }
+            fgets(buff, 255, (FILE*)fp);
+
+            struct Face f;
+            f.v1 = points[0];
+            f.v2 = points[1];
+            f.v3 = points[2];
+
+            solids[s].F[i / 4] = f;
+        }
+    }
+
+    fclose(fp);
+    printf("2b) distSS %f\n", distSS(solids[0], solids[1]));
     return 0;
 }

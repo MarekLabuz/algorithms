@@ -2,6 +2,7 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 struct Point {
 	double x, y, z;
@@ -19,6 +20,31 @@ struct Solid {
 	int size;
 	struct Face F[150];
 };
+
+double eps = 0.0000001;
+
+struct Point cP(double x, double y, double z) {
+    struct Point p;
+    p.x = x;
+    p.y = y;
+    p.z = z;
+    return p;
+}
+
+struct Edge cE(struct Point v1, struct Point v2) {
+    struct Edge e;
+    e.v1 = v1;
+    e.v2 = v2;
+    return e;
+}
+
+struct Face cF(struct Point v1, struct Point v2, struct Point v3) {
+    struct Face f;
+    f.v1 = v1;
+    f.v2 = v2;
+    f.v3 = v3;
+    return f;
+}
 
 double distPP(struct Point a, struct Point b) {
 	return sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2) + pow(b.z - a.z, 2));
@@ -50,47 +76,26 @@ struct Point getVectorPoint(struct Point p1, struct Point p2) {
 
 double distEP(struct Edge E, struct Point P) {
 	struct Point v = getVectorPoint(E.v1, E.v2);
-
 	struct Point w = getVectorPoint(E.v1, P);
 
 	double c1 = dot(w, v);
+	if (c1 <= 0) {
+	    return d(P, E.v1);
+	}
+
     double c2 = dot(v, v);
+    if (c2 <= c1) {
+        return d(P, E.v2);
+    }
+
     double b = c1 / c2;
 
     struct Point Pb;
     Pb.x = E.v1.x + b * v.x;
     Pb.y = E.v1.y + b * v.y;
     Pb.z = E.v1.z + b * v.z;
+
     return d(P, Pb);
-}
-
-double distLL(struct Edge E1, struct Edge E2) {
-	struct Point u = getVectorPoint(E1.v1, E1.v2);
-	struct Point v = getVectorPoint(E2.v1, E2.v2);
-	struct Point w = getVectorPoint(E2.v1, E1.v1);
-
-	float a = dot(u, u);
-    float b = dot(u, v);
-    float c = dot(v, v);
-    float d = dot(u, w);
-    float e = dot(v, w);
-    float D = a * c - b * b;
-    float sc, tc;
-
-    if (D <= 0) {
-        sc = 0.0;
-        tc = (b > c ? d / b : e / c);
-    } else {
-        sc = (b * e - c * d) / D;
-        tc = (a * e - b * d) / D;
-    }
-
-    struct Point dP;
-    dP.x = w.x + (sc * u.x) - (tc * v.x);
-    dP.y = w.y + (sc * u.y) - (tc * v.y);
-    dP.z = w.z + (sc * u.z) - (tc * v.z);
-
-	return norm(dP);
 }
 
 double distEE(struct Edge E1, struct Edge E2) {
@@ -98,16 +103,16 @@ double distEE(struct Edge E1, struct Edge E2) {
 	struct Point v = getVectorPoint(E2.v1, E2.v2);
 	struct Point w = getVectorPoint(E2.v1, E1.v1);
 
-    float a = dot(u, u);
-    float b = dot(u, v);
-    float c = dot(v, v);
-    float d = dot(u, w);
-    float e = dot(v, w);
-    float D = a * c - b * b;
-    float sc, sN, sD = D;
-    float tc, tN, tD = D;
+    double a = dot(u, u);
+    double b = dot(u, v);
+    double c = dot(v, v);
+    double d = dot(u, w);
+    double e = dot(v, w);
+    double D = a * c - b * b;
+    double sc, sN, sD = D;
+    double tc, tN, tD = D;
 
-    if (D <= 0) {
+    if (D <= eps) {
         sN = 0.0;
         sD = 1.0;
         tN = e;
@@ -151,8 +156,8 @@ double distEE(struct Edge E1, struct Edge E2) {
             sD = a;
         }
     }
-    sc = (fabsf(sN) <= 0 ? 0.0 : sN / sD);
-    tc = (fabsf(tN) <= 0 ? 0.0 : tN / tD);
+    sc = (fabs(sN) <= eps ? 0.0 : sN / sD);
+    tc = (fabs(tN) <= eps ? 0.0 : tN / tD);
 
     struct Point dP;
     dP.x = w.x + (sc * u.x) - (tc * v.x);
@@ -305,20 +310,72 @@ double distPF(struct Point P, struct Face F) {
     return norm(diff);
 }
 
+struct Point cross(struct Point a, struct Point b) {
+    struct Point p;
+    p.x = a.y * b.z - a.z * b.y;
+    p.y = a.z * b.x - a.x * b.z;
+    p.z = a.x * b.y - a.y * b.x;
+    return p;
+}
+
+double dotCross(struct Point p1, struct Point p2, struct Point p3) {
+    return dot(p1, cross(p2, p3));
+}
+
+bool intersects(struct Edge R, struct Face T) {
+    struct Point segOrigin;
+    segOrigin.x = (R.v1.x + R.v2.x) / 2;
+    segOrigin.y = (R.v1.y + R.v2.y) / 2;
+    segOrigin.z = (R.v1.z + R.v2.z) / 2;
+    struct Point segDirection = getVectorPoint(R.v1, R.v2);
+    double segExtent = norm(segDirection) / 2;
+
+    struct Point diff = getVectorPoint(T.v1, segOrigin);
+    struct Point edge1 = getVectorPoint(T.v1, T.v2);
+    struct Point edge2 = getVectorPoint(T.v1, T.v3);
+    struct Point normal = cross(edge1, edge2);
+
+    double DdN = dot(segDirection, normal);
+    double sign;
+    if (DdN > 0) {
+        sign = 1;
+    } else if (DdN < 0) {
+        sign = -1;
+        DdN = -DdN;
+    } else {
+        return false;
+    }
+
+    double DdQxE2 = sign * dotCross(segDirection, diff, edge2);
+
+    if (DdQxE2 >= 0) {
+        double DdE1xQ = sign * dotCross(segDirection, edge1, diff);
+        if (DdE1xQ >= 0) {
+            if (DdQxE2 + DdE1xQ <= DdN) {
+                double QdN = -sign * dot(diff, normal);
+                double extDdN = segExtent * DdN;
+                if (-extDdN <= QdN && QdN <= extDdN) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+
+
 double distEF(struct Edge e, struct Face f) {
+    if (intersects(e, f)) {
+        return 0;
+    }
+
     double distances[5];
 
-    struct Edge e1;
-    struct Edge e2;
-    struct Edge e3;
-    e1.v1 = f.v1; e1.v2 = f.v2;
-    e2.v1 = f.v2; e2.v2 = f.v3;
-    e3.v1 = f.v1; e3.v2 = f.v3;
-
-    distances[0] = distEE(e, e1);
-    distances[1] = distEE(e, e2);
-    distances[2] = distEE(e, e3);
-
+    distances[0] = distEE(e, cE(f.v1, f.v2));
+    distances[1] = distEE(e, cE(f.v2, f.v3));
+    distances[2] = distEE(e, cE(f.v1, f.v3));
     distances[3] = distPF(e.v1, f);
     distances[4] = distPF(e.v2, f);
 
@@ -336,24 +393,12 @@ double distEF(struct Edge e, struct Face f) {
 double distFF(struct Face f1, struct Face f2) {
     double distances[6];
 
-    struct Edge e1;
-    struct Edge e2;
-    struct Edge e3;
-    e1.v1 = f1.v1; e1.v2 = f1.v2;
-    e2.v1 = f1.v2; e2.v2 = f1.v3;
-    e3.v1 = f1.v1; e3.v2 = f1.v3;
-
-    distances[0] = distEF(e1, f2);
-    distances[1] = distEF(e2, f2);
-    distances[2] = distEF(e3, f2);
-
-    e1.v1 = f2.v1; e1.v2 = f2.v2;
-    e2.v1 = f2.v2; e2.v2 = f2.v3;
-    e3.v1 = f2.v1; e3.v2 = f2.v3;
-
-    distances[3] = distEF(e1, f1);
-    distances[4] = distEF(e2, f1);
-    distances[5] = distEF(e3, f1);
+    distances[0] = distEF(cE(f1.v1, f1.v2), f2);
+    distances[1] = distEF(cE(f1.v2, f1.v3), f2);
+    distances[2] = distEF(cE(f1.v1, f1.v3), f2);
+    distances[3] = distEF(cE(f2.v1, f2.v2), f1);
+    distances[4] = distEF(cE(f2.v2, f2.v3), f1);
+    distances[5] = distEF(cE(f2.v1, f2.v3), f1);
 
     double min = distances[0];
 
@@ -382,43 +427,43 @@ double distSS(struct Solid s1, struct Solid s2) {
 }
 
 int main() {
-    struct Point p1;
-    struct Point p2;
-
-    p1.x = 1.0; p1.y = 2.0; p1.z = 3.0;
-    p2.x = 4.0; p2.y = 5.0; p2.z = 6.0;
-
-    printf("distPP %f\n", distPP(p1, p2));
-
-    struct Edge e1;
-    struct Point p3;
-
-    p3.x = 40.0; p3.y = 5.0; p3.z = 6.0;
-    e1.v1 = p1; e1.v2 = p2;
-
-    printf("distEP %f\n", distEP(e1, p3));
-
-    struct Edge e2;
-    struct Point p4;
-
-    p4.x = 20.0; p4.y = 10.0; p4.z = -6.0;
-    e2.v1 = p4; e2.v2 = p2;
-
-    printf("distEE %f\n", distEE(e1, e2));
-
-    struct Face f1;
-    f1.v1 = p1; f1.v2 = p2; f1.v3 = p3;
-
-    printf("distPF %f\n", distPF(p4, f1));
-
-    struct Edge e3;
-    struct Point p5;
-    p5.x = 10.0; p5.y = 100.0; p5.z = -60.0;
-    e3.v1 = p4; e3.v2 = p5;
-
-    printf("distEF %f\n", distEF(e3, f1));
-
-    printf("distFF %f\n", distFF(f1, f1));
+//    struct Point p1;
+//    struct Point p2;
+//
+//    p1.x = 1.0; p1.y = 2.0; p1.z = 3.0;
+//    p2.x = 4.0; p2.y = 5.0; p2.z = 6.0;
+//
+//    printf("distPP %f\n", distPP(p1, p2));
+//
+//    struct Edge e1;
+//    struct Point p3;
+//
+//    p3.x = 40.0; p3.y = 5.0; p3.z = 6.0;
+//    e1.v1 = p1; e1.v2 = p2;
+//
+//    printf("distEP %f\n", distEP(e1, p3));
+//
+//    struct Edge e2;
+//    struct Point p4;
+//
+//    p4.x = 20.0; p4.y = 10.0; p4.z = -6.0;
+//    e2.v1 = p4; e2.v2 = p2;
+//
+//    printf("distEE %f\n", distEE(e1, e2));
+//
+//    struct Face f1;
+//    f1.v1 = p1; f1.v2 = p2; f1.v3 = p3;
+//
+//    printf("distPF %f\n", distPF(p4, f1));
+//
+//    struct Edge e3;
+//    struct Point p5;
+//    p5.x = 10.0; p5.y = 100.0; p5.z = -60.0;
+//    e3.v1 = p4; e3.v2 = p5;
+//
+//    printf("distEF %f\n", distEF(e3, f1));
+//
+//    printf("distFF %f\n", distFF(f1, f1));
 
     // 2a
     struct Point _p1;
@@ -445,8 +490,6 @@ int main() {
     // 2b
     struct Solid solids[2];
     solids[0].size = 132;
-//    solids[0].F =
-//    solids[1].size = 60;
     solids[1].size = 60;
 
     int solidIndex = -1;
@@ -495,5 +538,70 @@ int main() {
 
     fclose(fp);
     printf("2b) distSS %f\n", distSS(solids[0], solids[1]));
+
+
+    struct Point p1 = cP(1, 1, 0);
+    struct Point p2 = cP(2, 2, 0);
+    struct Point p3 = cP(4, 2, 0);
+    struct Point p4 = cP(2, 4, 0);
+    struct Point p5 = cP(2, 1, 0);
+    struct Point p6 = cP(4, 1, 0);
+    struct Point p7 = cP(1, 2, 0);
+
+    // print(dist_point_point(p1, p2))  // sqrt(2)
+    // print(dist_point_point(p1, p3))  // ~3.2
+
+    printf("%f = sqrt(2)\n", distPP(p1, p2));
+    printf("%f = ~3.2\n", distPP(p1, p3));
+
+    // print(dist_edge_point(Edge(p1, p2), p3))  // 2
+    // print(dist_edge_point(Edge(p3, p4), p2))  // sqrt(2)
+
+    printf("%f = 2\n", distEP(cE(p1, p2), p3));
+    printf("%f = sqrt(2)\n", distEP(cE(p3, p4), p2));
+
+    // print(dist_edge_edge(Edge(p1, p2), Edge(p3, p4)))  // sqrt(2)
+    // print(dist_edge_edge(Edge(p1, p2), Edge(p5, p6)))  // sqrt(2)/2
+    // print(dist_edge_edge(Edge(p3, p4), Edge(p5, p6)))  // 1
+    // print(dist_edge_edge(Edge(p5, p7), Edge(p3, p4)))  // ~~2.1
+
+    printf("%f = sqrt(2)\n", distEE(cE(p1, p2), cE(p3, p4)));
+    printf("%f = sqrt(2)/2\n", distEE(cE(p1, p2), cE(p5, p6)));
+    printf("%f = 1\n", distEE(cE(p3, p4), cE(p5, p6)));
+    printf("%f = ~2.1\n", distEE(cE(p5, p7), cE(p3, p4)));
+
+    // print(dist_edge_edge(Edge(Point([1, 0, 0]), Point([0, 1, 0])), Edge(Point([3, 0, 0]), Point([0, 3, 0]))))  // 1.4
+
+    printf("%f = ~1.4\n", distEE(cE(cP(1, 0, 0), cP(0, 1, 0)), cE(cP(3, 0, 0), cP(0, 3, 0))));
+
+    // print(dist_face_point(Face(p1, p2, Point([1, 1, 1])), p3))  // 2
+    // print(dist_face_point(Face(p1, p2, Point([2, 2, 1])), p3))  // 2
+    // print(dist_face_point(Face(p3, p4, Point([4, 2, 1])), p2))  // sqrt(2)
+    // print(dist_face_point(Face(Point([4, 2, 1]), Point([2, 4, 1]), Point([4, 2, 2])), p2))  // sqrt(3)
+
+    printf("%f = 2\n", distPF(p3, cF(p1, p2, cP(1, 1, 1))));
+    printf("%f = 2\n", distPF(p3, cF(p1, p2, cP(2, 2, 1))));
+    printf("%f = sqrt(2)\n", distPF(p2, cF(p3, p4, cP(4, 2, 1))));
+    printf("%f = sqrt(3)\n", distPF(p2, cF(cP(4, 2, 1), cP(2, 4, 1), cP(4, 2, 2))));
+
+    // f = Face(Point([0, 0, 0]), Point([3, 0, 0]), Point([0, 3, 0]))
+    struct Face f = cF(cP(0, 0, 0), cP(3, 0, 0), cP(0, 3, 0));
+
+    // e1 = Edge(Point([1, 2, 1]), Point([1, 0, -1]))
+    // e2 = Edge(Point([1, 2, 1]), Point([1, 3, 2]))
+    // e3 = Edge(Point([1, 4, 1]), Point([1, 2, -1]))
+
+    struct Edge e1 = cE(cP(1, 2, 1), cP(1, 0, -1));
+    struct Edge e2 = cE(cP(1, 2, 1), cP(1, 3, 2));
+    struct Edge e3 = cE(cP(1, 4, 1), cP(1, 2, -1));
+
+    // print(dist_face_edge(f, e1))  // 0 -> collision
+    // print(dist_face_edge(f, e2))  // 1
+    // print(dist_face_edge(f, e3))  // ~0.58
+
+    printf("%f = 0\n", distEF(e1, f));
+    printf("%f = 1\n", distEF(e2, f));
+    printf("%f = ~0.58\n", distEF(e3, f));
+
     return 0;
 }

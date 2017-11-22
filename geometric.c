@@ -407,7 +407,7 @@ double distSS(struct Solid s1, struct Solid s2) {
     double min = distFF(s1.F[0], s2.F[0]);
 
     for (int i = 0; i < s1.size; i += 1) {
-        for (int j = 0; j < s2.size; j += 1) {
+        for (int j = i + 1; j < s2.size; j += 1) {
             double distance = distFF(s1.F[i], s2.F[j]);
             if (distance < min) {
                 min = distance;
@@ -480,7 +480,10 @@ int main() {
     printf("2a) distFF %f\n", distFF(_f1, _f2));
 
     // 2b
-    struct Solid solids[2];
+    int noOfSolids = 1000;
+    char *filename = "./solid_data2.txt";
+    struct Solid * solids = (struct Solid *) malloc(noOfSolids * sizeof(struct Solid));
+
     solids[0].size = 132;
     solids[1].size = 60;
 
@@ -495,38 +498,57 @@ int main() {
     char buff[255];
     char *array[3];
 
-    fp = fopen("./solid_data.txt", "r");
+    fp = fopen(filename, "r");
 
-    for(int s = 0; s < 2; s += 1) {
+    int size = -1;
+    int i = 0;
+    while (feof((FILE*)fp) == 0 && size < noOfSolids) {
         fgets(buff, 255, (FILE*)fp);
-        for (int i = 0; i < solids[s].size * 4; i += 4) {
-            struct Point points[3];
 
-            for (int j = 0; j < 3; j += 1) {
-                fgets(buff, 255, (FILE*)fp);
-
-                array[0] = strtok(buff, ";");
-                array[1] = strtok(NULL, ";");
-                array[2] = strtok(NULL, ";");
-
-                points[j].x = strtod(array[0], NULL);
-                points[j].y = strtod(array[1], NULL);
-                points[j].z = strtod(array[2], NULL);
-            }
-            fgets(buff, 255, (FILE*)fp);
-
-            struct Face f;
-            f.v1 = points[0];
-            f.v2 = points[1];
-            f.v3 = points[2];
-
-            solids[s].F[i / 4] = f;
+        if (strstr(buff, "SOLID") != NULL) {
+            size += 1;
+            i = 0;
+            continue;
         }
+
+        struct Point points[3];
+
+        for (int j = 0; j < 3; j += 1) {
+            array[0] = strtok(buff, ";");
+            array[1] = strtok(NULL, ";");
+            array[2] = strtok(NULL, ";");
+
+            points[j].x = strtod(array[0], NULL);
+            points[j].y = strtod(array[1], NULL);
+            points[j].z = strtod(array[2], NULL);
+            fgets(buff, 255, (FILE*)fp);
+        }
+
+        solids[size].F[i++] = cF(points[0], points[1], points[2]);
+        solids[size].size = i;
     }
 
     fclose(fp);
-    printf("2b) distSS %f\n", distSS(solids[0], solids[1]));
 
+    printf("2b) %f\n", distSS(solids[0], solids[1]));
+
+    double max = 0;
+    for (int i = 35; i < noOfSolids; i += 1) {
+        double localMax = 0;
+        for (int j = i + 1; j < noOfSolids; j += 1) {
+            double dist = distSS(solids[i], solids[j]);
+            if (dist > max) {
+                printf("Current max: %f (solid %d - solid %d)\n", dist, i, j);
+                max = dist;
+            }
+            if (dist > localMax) {
+                localMax = dist;
+            }
+        }
+        printf("i: %d done, local max: %f\n", i, localMax);
+    }
+
+    return 0;
 
     struct Point p1 = cP(1, 1, 0);
     struct Point p2 = cP(2, 2, 0);

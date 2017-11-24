@@ -21,6 +21,11 @@ struct Solid {
 	struct Face F[150];
 };
 
+struct AABB {
+    double xMin, yMin, zMin, xMax, yMax, zMax;
+    struct Point center;
+};
+
 double eps = 0.0000001;
 
 struct Point cP(double x, double y, double z) {
@@ -532,21 +537,21 @@ int main() {
 
     printf("2b) %f\n", distSS(solids[0], solids[1]));
 
-    double max = 0;
-    for (int i = 35; i < noOfSolids; i += 1) {
-        double localMax = 0;
-        for (int j = i + 1; j < noOfSolids; j += 1) {
-            double dist = distSS(solids[i], solids[j]);
-            if (dist > max) {
-                printf("Current max: %f (solid %d - solid %d)\n", dist, i, j);
-                max = dist;
-            }
-            if (dist > localMax) {
-                localMax = dist;
-            }
-        }
-        printf("i: %d done, local max: %f\n", i, localMax);
-    }
+//    double max = 0;
+//    for (int i = 35; i < noOfSolids; i += 1) {
+//        double localMax = 0;
+//        for (int j = i + 1; j < noOfSolids; j += 1) {
+//            double dist = distSS(solids[i], solids[j]);
+//            if (dist > max) {
+//                printf("Current max: %f (solid %d - solid %d)\n", dist, i, j);
+//                max = dist;
+//            }
+//            if (dist > localMax) {
+//                localMax = dist;
+//            }
+//        }
+//        printf("i: %d done, local max: %f\n", i, localMax);
+//    }
 
     return 0;
 

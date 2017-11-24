@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <time.h>
 
 struct Point {
 	double x, y, z;
@@ -16,14 +17,15 @@ struct Edge {
 	struct Point v1, v2;
 };
 
-struct Solid {
-	int size;
-	struct Face F[150];
-};
-
 struct AABB {
     double xMin, yMin, zMin, xMax, yMax, zMax;
     struct Point center;
+};
+
+struct Solid {
+	int size;
+	struct AABB aabb;
+	struct Face F[1000];
 };
 
 double eps = 0.0000001;
@@ -423,44 +425,124 @@ double distSS(struct Solid s1, struct Solid s2) {
     return min;
 }
 
+double getVMinX (struct Face F) {
+    return F.v1.x < F.v2.x ? (F.v1.x < F.v3.x ? F.v1.x : F.v3.x) : (F.v2.x < F.v3.x ? F.v2.x : F.v3.x);
+}
+
+double getVMinY (struct Face F) {
+    return F.v1.y < F.v2.y ? (F.v1.y < F.v3.y ? F.v1.y : F.v3.y) : (F.v2.y < F.v3.y ? F.v2.y : F.v3.y);
+}
+
+double getVMinZ (struct Face F) {
+    return F.v1.z < F.v2.z ? (F.v1.z < F.v3.z ? F.v1.z : F.v3.z) : (F.v2.z < F.v3.z ? F.v2.z : F.v3.z);
+}
+
+double getVMaxX (struct Face F) {
+    return F.v1.x > F.v2.x ? (F.v1.x > F.v3.x ? F.v1.x : F.v3.x) : (F.v2.x > F.v3.x ? F.v2.x : F.v3.x);
+}
+
+double getVMaxY (struct Face F) {
+    return F.v1.y > F.v2.y ? (F.v1.y > F.v3.y ? F.v1.y : F.v3.y) : (F.v2.y > F.v3.y ? F.v2.y : F.v3.y);
+}
+
+double getVMaxZ (struct Face F) {
+    return F.v1.z > F.v2.z ? (F.v1.z > F.v3.z ? F.v1.z : F.v3.z) : (F.v2.z > F.v3.z ? F.v2.z : F.v3.z);
+}
+
+struct AABB getAABB(struct Solid S) {
+    double minX = S.F[0].v1.x;
+    double minY = S.F[0].v1.y;
+    double minZ = S.F[0].v1.z;
+
+    double maxX = minX;
+    double maxY = minY;
+    double maxZ = minZ;
+
+    for(int i = 0; i < S.size; i += 1) {
+        double vMinX = getVMinX(S.F[i]);
+        double vMinY = getVMinY(S.F[i]);
+        double vMinZ = getVMinZ(S.F[i]);
+
+        if (vMinX < minX) {
+            minX = vMinX;
+        }
+        if (vMinY < minY) {
+            minY = vMinY;
+        }
+        if (vMinZ < minZ) {
+            minZ = vMinZ;
+        }
+
+        double vMaxX = getVMaxX(S.F[i]);
+        double vMaxY = getVMaxY(S.F[i]);
+        double vMaxZ = getVMaxZ(S.F[i]);
+
+        if (vMaxX > maxX) {
+            maxX = vMaxX;
+        }
+        if (vMaxY > maxY) {
+            maxY = vMaxY;
+        }
+        if (vMaxZ > maxZ) {
+            maxZ = vMaxZ;
+        }
+    }
+//    printf("test\n");
+
+    struct AABB aabb;
+    aabb.xMin = minX;
+    aabb.yMin = minY;
+    aabb.zMin = minZ;
+
+    aabb.xMax = maxX;
+    aabb.yMax = maxY;
+    aabb.zMax = maxZ;
+
+    aabb.center = cP((maxX - minX) / 2, (maxY - minY) / 2, (maxZ - minZ) / 2);
+
+    return aabb;
+}
+
+bool overlaps(struct AABB a1, struct AABB a2) {
+    return (
+        a1.xMax > a2.xMin &&
+        a1.xMin < a2.xMax &&
+        a1.yMax > a2.yMin &&
+        a1.yMin < a2.yMax &&
+        a1.zMax > a2.zMin &&
+        a1.zMin < a2.zMax
+    );
+}
+
+double distAB(struct AABB a1, struct AABB a2) {
+//    if (overlaps(a1, a2)) {
+//        return 0;
+//    }
+
+    double x, y, z;
+
+    if (a1.xMax > a2.xMin && a1.xMin < a2.xMax) {
+        x = 0;
+    } else {
+        x = a2.xMin >= a1.xMax ? a2.xMin - a1.xMax : a1.xMin - a2.xMax;
+    }
+
+    if (a1.zMax > a2.zMin && a1.zMin < a2.zMax) {
+        y = 0;
+    } else {
+        y = a2.yMin >= a1.yMax ? a2.yMin - a1.yMax : a1.yMin - a2.yMax;
+    }
+
+    if (a1.zMax > a2.zMin && a1.zMin < a2.zMax) {
+        z = 0;
+    } else {
+        z = a2.zMin >= a1.zMax ? a2.zMin - a1.zMax : a1.zMin - a2.zMax;
+    }
+
+    return sqrt(x * x + y * y + z * z);
+}
+
 int main() {
-//    struct Point p1;
-//    struct Point p2;
-//
-//    p1.x = 1.0; p1.y = 2.0; p1.z = 3.0;
-//    p2.x = 4.0; p2.y = 5.0; p2.z = 6.0;
-//
-//    printf("distPP %f\n", distPP(p1, p2));
-//
-//    struct Edge e1;
-//    struct Point p3;
-//
-//    p3.x = 40.0; p3.y = 5.0; p3.z = 6.0;
-//    e1.v1 = p1; e1.v2 = p2;
-//
-//    printf("distEP %f\n", distEP(e1, p3));
-//
-//    struct Edge e2;
-//    struct Point p4;
-//
-//    p4.x = 20.0; p4.y = 10.0; p4.z = -6.0;
-//    e2.v1 = p4; e2.v2 = p2;
-//
-//    printf("distEE %f\n", distEE(e1, e2));
-//
-//    struct Face f1;
-//    f1.v1 = p1; f1.v2 = p2; f1.v3 = p3;
-//
-//    printf("distPF %f\n", distPF(p4, f1));
-//
-//    struct Edge e3;
-//    struct Point p5;
-//    p5.x = 10.0; p5.y = 100.0; p5.z = -60.0;
-//    e3.v1 = p4; e3.v2 = p5;
-//
-//    printf("distEF %f\n", distEF(e3, f1));
-//
-//    printf("distFF %f\n", distFF(f1, f1));
 
     // 2a
     struct Point _p1;
@@ -485,12 +567,9 @@ int main() {
     printf("2a) distFF %f\n", distFF(_f1, _f2));
 
     // 2b
-    int noOfSolids = 1000;
+    int noOfSolids = 4850;
     char *filename = "./solid_data2.txt";
     struct Solid * solids = (struct Solid *) malloc(noOfSolids * sizeof(struct Solid));
-
-    solids[0].size = 132;
-    solids[1].size = 60;
 
     int solidIndex = -1;
     int faceIndex = -1;
@@ -537,21 +616,35 @@ int main() {
 
     printf("2b) %f\n", distSS(solids[0], solids[1]));
 
-//    double max = 0;
-//    for (int i = 35; i < noOfSolids; i += 1) {
-//        double localMax = 0;
-//        for (int j = i + 1; j < noOfSolids; j += 1) {
-//            double dist = distSS(solids[i], solids[j]);
-//            if (dist > max) {
-//                printf("Current max: %f (solid %d - solid %d)\n", dist, i, j);
-//                max = dist;
-//            }
-//            if (dist > localMax) {
-//                localMax = dist;
-//            }
-//        }
+    struct Solid * aabbSolids = (struct Solid *) malloc(noOfSolids * sizeof(struct Solid));
+
+    int k = 0;
+
+    for(int i = 0; i < noOfSolids; i += 1) {
+        solids[i].aabb = getAABB(solids[i]);
+    }
+
+    clock_t begin = clock();
+    double maxDist = 0;
+    for (int i = 0; i < noOfSolids; i += 1) {
+        double localMax = 0;
+        for (int j = i + 1; j < noOfSolids; j += 1) {
+            double dist = distAB(solids[i].aabb, solids[j].aabb);
+            if (dist > maxDist) {
+                printf("Current max: %f (solid %d - solid %d)\n", dist, i, j);
+                maxDist = dist;
+            }
+            if (dist > localMax) {
+                localMax = dist;
+            }
+        }
 //        printf("i: %d done, local max: %f\n", i, localMax);
-//    }
+    }
+    clock_t end = clock();
+    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    printf("%fms\n", time_spent * 1000);
+
+    printf("Max: %f\n", maxDist);
 
     return 0;
 

@@ -410,7 +410,22 @@ double distFF(struct Face f1, struct Face f2) {
     return min;
 }
 
-double distSS(struct Solid s1, struct Solid s2) {
+bool overlaps(struct AABB a1, struct AABB a2) {
+    return (
+        a1.xMax > a2.xMin &&
+        a1.xMin < a2.xMax &&
+        a1.yMax > a2.yMin &&
+        a1.yMin < a2.yMax &&
+        a1.zMax > a2.zMin &&
+        a1.zMin < a2.zMax
+    );
+}
+
+double distSS(struct Solid s1, struct Solid s2, bool checkOverlaping) {
+    if (checkOverlaping && overlaps(s1.aabb, s2.aabb)) {
+        return 0;
+    }
+
     double min = distFF(s1.F[0], s2.F[0]);
 
     for (int i = 0; i < s1.size; i += 1) {
@@ -503,17 +518,6 @@ struct AABB getAABB(struct Solid S) {
     return aabb;
 }
 
-bool overlaps(struct AABB a1, struct AABB a2) {
-    return (
-        a1.xMax > a2.xMin &&
-        a1.xMin < a2.xMax &&
-        a1.yMax > a2.yMin &&
-        a1.yMin < a2.yMax &&
-        a1.zMax > a2.zMin &&
-        a1.zMin < a2.zMax
-    );
-}
-
 double distAB(struct AABB a1, struct AABB a2) {
 //    if (overlaps(a1, a2)) {
 //        return 0;
@@ -540,6 +544,39 @@ double distAB(struct AABB a1, struct AABB a2) {
     }
 
     return sqrt(x * x + y * y + z * z);
+}
+
+bool samePoints(struct Point p1, struct Point p2) {
+    return p1.x == p2.x && p1.y == p2.y && p1.z == p2.z;
+}
+
+bool sameSolids(struct Solid s1, struct Solid s2) {
+    if (s1.size != s2.size) {
+        return false;
+    }
+
+    for(int i = 0; i < s1.size; i += 1) {
+        struct Point s1Fv1 = s1.F[i].v1;
+        struct Point s1Fv2 = s1.F[i].v2;
+        struct Point s1Fv3 = s1.F[i].v3;
+
+        struct Point s2Fv1 = s2.F[i].v1;
+        struct Point s2Fv2 = s2.F[i].v2;
+        struct Point s2Fv3 = s2.F[i].v3;
+
+        if (samePoints(s1Fv1, s2Fv1)) {
+            return true;
+        }
+
+        if (samePoints(s1Fv2, s2Fv2)) {
+            return true;
+        }
+
+        if (samePoints(s1Fv3, s2Fv3)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 int main() {
@@ -614,22 +651,41 @@ int main() {
 
     fclose(fp);
 
-    printf("2b) %f\n", distSS(solids[0], solids[1]));
+//    printf("2b) %f\n", distSS(solids[0], solids[1]));
 
-    struct Solid * aabbSolids = (struct Solid *) malloc(noOfSolids * sizeof(struct Solid));
+    int noOfUniqSolids = 95;
+    struct Solid * uniqueSolids = (struct Solid *) malloc(noOfUniqSolids * sizeof(struct Solid));
 
     int k = 0;
-
+    int p = 0;
     for(int i = 0; i < noOfSolids; i += 1) {
-        solids[i].aabb = getAABB(solids[i]);
+        bool exists = false;
+        for(int j = 0; j <= k; j += 1) {
+            if (sameSolids(solids[i], uniqueSolids[j])) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) {
+            uniqueSolids[k] = solids[i];
+            k += 1;
+        }
     }
 
+    printf("number of unique solids: %d\n", k);
+
+    for(int i = 0; i < noOfUniqSolids; i += 1) {
+        uniqueSolids[i].aabb = getAABB(uniqueSolids[i]);
+    }
+
+
+    // Without AABB
     clock_t begin = clock();
     double maxDist = 0;
-    for (int i = 0; i < noOfSolids; i += 1) {
+    for (int i = 0; i < noOfUniqSolids; i += 1) {
         double localMax = 0;
-        for (int j = i + 1; j < noOfSolids; j += 1) {
-            double dist = distAB(solids[i].aabb, solids[j].aabb);
+        for (int j = i + 1; j < noOfUniqSolids; j += 1) {
+            double dist = distSS(uniqueSolids[i], uniqueSolids[j], false);
             if (dist > maxDist) {
                 printf("Current max: %f (solid %d - solid %d)\n", dist, i, j);
                 maxDist = dist;
@@ -638,13 +694,37 @@ int main() {
                 localMax = dist;
             }
         }
-//        printf("i: %d done, local max: %f\n", i, localMax);
     }
     clock_t end = clock();
-    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-    printf("%fms\n", time_spent * 1000);
+    double time_spent_naive = (double)(end - begin) / CLOCKS_PER_SEC;
+    printf("Max: %f, Time spent: %fms\n", maxDist, time_spent_naive * 1000);
 
-    printf("Max: %f\n", maxDist);
+
+
+    // With AABB
+    begin = clock();
+    maxDist = 0;
+    for (int i = 0; i < noOfUniqSolids; i += 1) {
+        double localMax = 0;
+        for (int j = i + 1; j < noOfUniqSolids; j += 1) {
+            double dist = distSS(uniqueSolids[i], uniqueSolids[j], true);
+            if (dist > maxDist) {
+                printf("Current max: %f (solid %d - solid %d)\n", dist, i, j);
+                maxDist = dist;
+            }
+            if (dist > localMax) {
+                localMax = dist;
+            }
+        }
+    }
+    end = clock();
+    double time_spent_opt = (double)(end - begin) / CLOCKS_PER_SEC;
+    printf("Max: %f, Time spent: %fms\n", maxDist, time_spent_opt * 1000);
+
+
+    printf("Time reduction: %f%%\n", (100 * time_spent_naive / time_spent_opt) - 100);
+
+
 
     return 0;
 

@@ -660,7 +660,7 @@ int main() {
     int p = 0;
     for(int i = 0; i < noOfSolids; i += 1) {
         bool exists = false;
-        for(int j = 0; j <= k; j += 1) {
+        for(int j = 0; j < k; j += 1) {
             if (sameSolids(solids[i], uniqueSolids[j])) {
                 exists = true;
                 break;

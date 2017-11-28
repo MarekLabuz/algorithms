@@ -715,7 +715,7 @@ int main() {
     printf("Max: %f, Time spent: %fms\n", maxDist, time_spent_opt * 1000);
 
 
-    printf("Time reduction: %f%%\n", (100 * time_spent_naive / time_spent_opt) - 100);
+    printf("Time reduction: %f%%\n", 100 - (100 * time_spent_opt / time_spent_naive));
 
 
 

@@ -421,11 +421,7 @@ bool overlaps(struct AABB a1, struct AABB a2) {
     );
 }
 
-double distSS(struct Solid s1, struct Solid s2, bool checkOverlaping) {
-    if (checkOverlaping && overlaps(s1.aabb, s2.aabb)) {
-        return 0;
-    }
-
+double distSS(struct Solid s1, struct Solid s2) {
     double min = distFF(s1.F[0], s2.F[0]);
 
     for (int i = 0; i < s1.size; i += 1) {
@@ -513,16 +509,12 @@ struct AABB getAABB(struct Solid S) {
     aabb.yMax = maxY;
     aabb.zMax = maxZ;
 
-    aabb.center = cP((maxX - minX) / 2, (maxY - minY) / 2, (maxZ - minZ) / 2);
+//    aabb.center = cP((maxX - minX) / 2, (maxY - minY) / 2, (maxZ - minZ) / 2);
 
     return aabb;
 }
 
 double distAB(struct AABB a1, struct AABB a2) {
-//    if (overlaps(a1, a2)) {
-//        return 0;
-//    }
-
     double x, y, z;
 
     if (a1.xMax > a2.xMin && a1.xMin < a2.xMax) {
@@ -564,19 +556,12 @@ bool sameSolids(struct Solid s1, struct Solid s2) {
         struct Point s2Fv2 = s2.F[i].v2;
         struct Point s2Fv3 = s2.F[i].v3;
 
-        if (samePoints(s1Fv1, s2Fv1)) {
-            return true;
-        }
-
-        if (samePoints(s1Fv2, s2Fv2)) {
-            return true;
-        }
-
-        if (samePoints(s1Fv3, s2Fv3)) {
-            return true;
+        if (!samePoints(s1Fv1, s2Fv1) || !samePoints(s1Fv2, s2Fv2) || !samePoints(s1Fv3, s2Fv3)) {
+            return false;
         }
     }
-    return false;
+
+    return true;
 }
 
 int main() {
@@ -623,7 +608,7 @@ int main() {
 
     int size = -1;
     int i = 0;
-    while (feof((FILE*)fp) == 0 && size < noOfSolids) {
+    while (feof((FILE*)fp) == 0) {
         fgets(buff, 255, (FILE*)fp);
 
         if (strstr(buff, "SOLID") != NULL) {
@@ -653,11 +638,10 @@ int main() {
 
 //    printf("2b) %f\n", distSS(solids[0], solids[1]));
 
-    int noOfUniqSolids = 95;
+    int noOfUniqSolids = 97;
     struct Solid * uniqueSolids = (struct Solid *) malloc(noOfUniqSolids * sizeof(struct Solid));
 
     int k = 0;
-    int p = 0;
     for(int i = 0; i < noOfSolids; i += 1) {
         bool exists = false;
         for(int j = 0; j < k; j += 1) {
@@ -669,10 +653,11 @@ int main() {
         if (!exists) {
             uniqueSolids[k] = solids[i];
             k += 1;
+//            printf("k: %d\n", k);
         }
     }
 
-    printf("number of unique solids: %d\n", k);
+//    printf("number of unique solids: %d\n", k);
 
     for(int i = 0; i < noOfUniqSolids; i += 1) {
         uniqueSolids[i].aabb = getAABB(uniqueSolids[i]);
@@ -685,7 +670,7 @@ int main() {
     for (int i = 0; i < noOfUniqSolids; i += 1) {
         double localMax = 0;
         for (int j = i + 1; j < noOfUniqSolids; j += 1) {
-            double dist = distSS(uniqueSolids[i], uniqueSolids[j], false);
+            double dist = distSS(uniqueSolids[i], uniqueSolids[j]);
             if (dist > maxDist) {
                 printf("Current max: %f (solid %d - solid %d)\n", dist, i, j);
                 maxDist = dist;
@@ -704,19 +689,27 @@ int main() {
     // With AABB
     begin = clock();
     maxDist = 0;
+    int p = 0;
+    int q = 0;
     for (int i = 0; i < noOfUniqSolids; i += 1) {
         double localMax = 0;
         for (int j = i + 1; j < noOfUniqSolids; j += 1) {
-            double dist = distSS(uniqueSolids[i], uniqueSolids[j], true);
-            if (dist > maxDist) {
-                printf("Current max: %f (solid %d - solid %d)\n", dist, i, j);
-                maxDist = dist;
-            }
-            if (dist > localMax) {
-                localMax = dist;
+            if (!overlaps(uniqueSolids[i].aabb, uniqueSolids[j].aabb)) {
+                p++;
+                double dist = distSS(uniqueSolids[i], uniqueSolids[j]);
+                if (dist > maxDist) {
+                    printf("Current max: %f (solid %d - solid %d)\n", dist, i, j);
+                    maxDist = dist;
+                }
+                if (dist > localMax) {
+                    localMax = dist;
+                }
+            } else {
+                q++;
             }
         }
     }
+    printf("not overlaping: %d, overlaping: %d\n", p, q);
     end = clock();
     double time_spent_opt = (double)(end - begin) / CLOCKS_PER_SEC;
     printf("Max: %f, Time spent: %fms\n", maxDist, time_spent_opt * 1000);
